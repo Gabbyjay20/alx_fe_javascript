@@ -1,25 +1,71 @@
-// Array of quote objects
+// Array of quotes with text and category
 const quotes = [
-  { text: "The future belongs to those who prepare for it today.", category: "Inspiration" },
-  { text: "Do what you can, with what you have, where you are.", category: "Motivation" },
-  { text: "In the middle of difficulty lies opportunity.", category: "Wisdom" }
+    { text: "The best way to get started is to quit talking and begin doing.", category: "Motivation" },
+    { text: "Don’t let yesterday take up too much of today.", category: "Inspiration" },
+    { text: "It’s not whether you get knocked down, it’s whether you get up.", category: "Resilience" },
+    { text: "Your time is limited, so don’t waste it living someone else’s life.", category: "Wisdom" },
+    { text: "If you want to achieve greatness stop asking for permission.", category: "Courage" }
 ];
 
-// Function to show a random quote and update the DOM
-function displayRandomQuote() {
-  const randomIndex = Math.floor(Math.random() * quotes.length);
-  const randomQuote = quotes[randomIndex];
-  
-  // ✅ Update DOM using innerHTML
-  const quoteDisplay = document.getElementById("quoteDisplay");
-  quoteDisplay.innerHTML = `
-    <p>"${randomQuote.text}"</p>
-    <p><strong>Category:</strong> ${randomQuote.category}</p>
-  `;
+// Function to display a random quote
+function showRandomQuote() {
+    const randomIndex = Math.floor(Math.random() * quotes.length);
+    const quote = quotes[randomIndex];
+
+    const quoteContainer = document.getElementById("quote-container");
+    if (quoteContainer) {
+        quoteContainer.innerHTML = `
+            <p id="quote-text">${quote.text}</p>
+            <p id="quote-category"><em>${quote.category}</em></p>
+        `;
+    }
+}
+
+// Function to add a new quote
+function addQuote(text, category) {
+    if (text && category) {
+        quotes.push({ text, category });
+        saveQuotesToStorage();
+        showRandomQuote(); // Refresh display after adding
+    }
+}
+
+// Save quotes to localStorage
+function saveQuotesToStorage() {
+    localStorage.setItem("quotes", JSON.stringify(quotes));
+}
+
+// Load quotes from localStorage if they exist
+function loadQuotesFromStorage() {
+    const storedQuotes = localStorage.getItem("quotes");
+    if (storedQuotes) {
+        const parsedQuotes = JSON.parse(storedQuotes);
+        if (Array.isArray(parsedQuotes)) {
+            quotes.length = 0;
+            quotes.push(...parsedQuotes);
+        }
+    }
 }
 
 // Event listener for the “Show New Quote” button
-document.getElementById("newQuote").addEventListener("click", displayRandomQuote);
+document.addEventListener("DOMContentLoaded", () => {
+    loadQuotesFromStorage();
+    showRandomQuote();
 
-// Display an initial quote when the page loads
-window.onload = displayRandomQuote;
+    const newQuoteButton = document.getElementById("new-quote");
+    if (newQuoteButton) {
+        newQuoteButton.addEventListener("click", showRandomQuote);
+    }
+
+    // Optional: if you have a form for adding new quotes
+    const addQuoteForm = document.getElementById("add-quote-form");
+    if (addQuoteForm) {
+        addQuoteForm.addEventListener("submit", (event) => {
+            event.preventDefault();
+            const text = document.getElementById("quote-input").value.trim();
+            const category = document.getElementById("category-input").value.trim();
+            addQuote(text, category);
+            addQuoteForm.reset();
+        });
+    }
+});
