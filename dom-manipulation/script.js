@@ -93,6 +93,9 @@ function addQuote() {
   textEl.value = '';
   catEl.value = '';
 
+  // Update categories dropdown
+  populateCategories();
+
   // Show the newly added quote immediately
   showRandomQuote();
 }
@@ -214,6 +217,7 @@ function importFromJsonFile(event) {
       });
 
       saveQuotes();
+      populateCategories(); // Update categories after import
       alert(`Imported ${added} new quotes (skipped ${valid.length - added} duplicates).`);
       showRandomQuote();
     } catch (err) {
@@ -226,6 +230,82 @@ function importFromJsonFile(event) {
   reader.readAsText(f);
 }
 
+/* -------------------------
+    Populate Categories Dynamically
+    ------------------------- */
+function populateCategories() {
+  const select = document.getElementById('categoryFilter');
+  if (!select) return;
+
+  // Clear existing options except "All Categories"
+  select.innerHTML = '<option value="all">All Categories</option>';
+
+  // Get unique categories
+  const categories = [...new Set(quotes.map(q => q.category))].sort();
+
+  // Add options for each category
+  categories.forEach(cat => {
+    const option = document.createElement('option');
+    option.value = cat;
+    option.textContent = cat;
+    select.appendChild(option);
+  });
+}
+
+/* -------------------------
+    Filter Quotes Based on Selected Category
+    ------------------------- */
+function filterQuotes() {
+  const select = document.getElementById('categoryFilter');
+  if (!select) return;
+
+  const selectedCategory = select.value;
+
+  // Save filter preference to localStorage
+  try {
+    localStorage.setItem('selectedCategory', selectedCategory);
+  } catch (err) {
+    console.error('Could not save filter preference', err);
+  }
+
+  // Filter quotes
+  let filteredQuotes;
+  if (selectedCategory === 'all') {
+    filteredQuotes = quotes;
+  } else {
+    filteredQuotes = quotes.filter(q => q.category === selectedCategory);
+  }
+
+  // Update display with filtered quotes
+  const display = document.getElementById('quoteDisplay');
+  if (!display) return;
+
+  if (filteredQuotes.length === 0) {
+    display.innerHTML = '<p>No quotes found for this category.</p>';
+    return;
+  }
+
+  // Show a random quote from filtered list
+  const randomIndex = Math.floor(Math.random() * filteredQuotes.length);
+  const q = filteredQuotes[randomIndex];
+
+  display.innerHTML = `
+    <p class="quote-text">"${escapeHtml(q.text)}"</p>
+    <p class="quote-cat"><em>Category: ${escapeHtml(q.category)}</em></p>
+  `;
+
+  // Update sessionStorage with the index in the original array
+  const originalIndex = quotes.findIndex(quote => quote === q);
+  if (originalIndex !== -1) {
+    try {
+      sessionStorage.setItem('lastQuoteIndex', String(originalIndex));
+    } catch (err) {
+      // ignore session errors
+    }
+  }
+}
+
+/* -------------------------
 /* -------------------------
    Utility: escape HTML for safety in innerHTML
    ------------------------- */
@@ -244,6 +324,22 @@ function escapeHtml(text) {
 document.addEventListener('DOMContentLoaded', () => {
   // Load saved quotes if exist
   loadQuotes();
+
+  // Populate categories dropdown
+  populateCategories();
+
+  // Restore last selected filter
+  try {
+    const savedFilter = localStorage.getItem('selectedCategory');
+    if (savedFilter) {
+      const select = document.getElementById('categoryFilter');
+      if (select) {
+        select.value = savedFilter;
+      }
+    }
+  } catch (err) {
+    console.error('Could not restore filter preference', err);
+  }
 
   // Create the add-quote form and import/export UI dynamically
   createAddQuoteForm('form-container' /* optional container id; will fallback to body if not found */);
