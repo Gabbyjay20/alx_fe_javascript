@@ -7,6 +7,9 @@ const STORAGE_KEY = 'quotes';
 const SERVER_URL = 'https://jsonplaceholder.typicode.com/posts';
 const SYNC_INTERVAL = 30000; // 30 seconds for demo
 
+// Conflict resolution state
+let pendingConflicts = [];
+
 // Default quotes (used if no saved data)
 let quotes = [
   { text: "The best way to get started is to quit talking and begin doing.", category: "Motivation" },
@@ -373,15 +376,19 @@ async function syncWithServer() {
   let conflicts = [];
   let updates = 0;
 
-  // Check for conflicts (simple: if server has quotes not in local)
-  const localKeys = new Set(quotes.map(q => q.text));
+  // Check for conflicts (if server has quotes with same text but different category)
+  const localMap = new Map(quotes.map(q => [q.text, q]));
   serverQuotes.forEach(serverQuote => {
-    if (!localKeys.has(serverQuote.text)) {
+    const localQuote = localMap.get(serverQuote.text);
+    if (!localQuote) {
+      // New quote from server
       quotes.push(serverQuote);
       updates++;
-    } else {
-      conflicts.push(serverQuote);
+    } else if (localQuote.category !== serverQuote.category) {
+      // Conflict: same text, different category
+      conflicts.push({ local: localQuote, server: serverQuote });
     }
+    // If same text and category, no action needed
   });
 
   if (updates > 0) {
@@ -391,7 +398,11 @@ async function syncWithServer() {
   }
 
   if (conflicts.length > 0) {
-    showNotification(`Conflicts detected with ${conflicts.length} quotes. Server data takes precedence.`, 'conflict');
+    pendingConflicts = conflicts;
+    showNotification(`Conflicts detected with ${conflicts.length} quotes. Please resolve manually.`, 'conflict');
+    showConflictResolutionUI();
+  } else {
+    hideConflictResolutionUI();
   }
 
   // Post local changes to server
@@ -406,19 +417,63 @@ function showNotification(message, type = 'info') {
   notification.textContent = message;
   notification.style.display = 'block';
   notification.style.background = type === 'conflict' ? '#ffcccc' : '#ccffcc';
+  notification.style.color = '#000';
+  notification.style.padding = '10px';
+  notification.style.marginBottom = '1rem';
+  notification.style.borderRadius = '4px';
 
+  // Auto-hide after 10 seconds for conflicts, 5 for others
+  const timeout = type === 'conflict' ? 10000 : 5000;
   setTimeout(() => {
     notification.style.display = 'none';
-  }, 5000);
+  }, timeout);
 }
 
-// Manual conflict resolution (simple: keep local)
+// Show conflict resolution UI
+function showConflictResolutionUI() {
+  const keepLocalBtn = document.getElementById('resolveKeepLocal');
+  const acceptServerBtn = document.getElementById('resolveAcceptServer');
+  if (keepLocalBtn) keepLocalBtn.style.display = 'inline-block';
+  if (acceptServerBtn) acceptServerBtn.style.display = 'inline-block';
+}
+
+// Hide conflict resolution UI
+function hideConflictResolutionUI() {
+  const keepLocalBtn = document.getElementById('resolveKeepLocal');
+  const acceptServerBtn = document.getElementById('resolveAcceptServer');
+  if (keepLocalBtn) keepLocalBtn.style.display = 'none';
+  if (acceptServerBtn) acceptServerBtn.style.display = 'none';
+}
+
+// Manual conflict resolution: keep local
 function resolveConflictKeepLocal() {
+  if (pendingConflicts.length === 0) {
+    showNotification('No conflicts to resolve.');
+    return;
+  }
+  // Keep local data, discard server conflicts
+  pendingConflicts = [];
+  hideConflictResolutionUI();
   showNotification('Conflict resolved: Keeping local data.');
 }
 
-// Manual conflict resolution (simple: accept server)
+// Manual conflict resolution: accept server
 function resolveConflictAcceptServer() {
+  if (pendingConflicts.length === 0) {
+    showNotification('No conflicts to resolve.');
+    return;
+  }
+  // Update local quotes with server data for conflicts
+  pendingConflicts.forEach(conflict => {
+    const index = quotes.findIndex(q => q.text === conflict.local.text);
+    if (index !== -1) {
+      quotes[index] = conflict.server;
+    }
+  });
+  saveQuotes();
+  populateCategories();
+  pendingConflicts = [];
+  hideConflictResolutionUI();
   showNotification('Conflict resolved: Accepting server data.');
 }
 
@@ -475,11 +530,13 @@ document.addEventListener('DOMContentLoaded', () => {
   const keepLocalBtn = document.getElementById('resolveKeepLocal');
   if (keepLocalBtn) {
     keepLocalBtn.addEventListener('click', resolveConflictKeepLocal);
+    keepLocalBtn.style.display = 'none'; // Hide initially
   }
 
   const acceptServerBtn = document.getElementById('resolveAcceptServer');
   if (acceptServerBtn) {
     acceptServerBtn.addEventListener('click', resolveConflictAcceptServer);
+    acceptServerBtn.style.display = 'none'; // Hide initially
   }
 
   // If sessionStorage has last shown index, try to show it
