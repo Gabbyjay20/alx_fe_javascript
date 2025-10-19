@@ -9,6 +9,7 @@
 
 <body>
     <h1>Dynamic Quote Generator</h1>
+    <div id="notification" style="display:none; background:yellow; padding:10px; margin-bottom:1rem;"></div>
 
     <!-- Display random quote -->
     <div id="quoteDisplay"></div>
@@ -29,6 +30,13 @@
     <input id="newQuoteText" type="text" placeholder="Enter quote" />
     <input id="newQuoteCategory" type="text" placeholder="Enter category" />
     <button id="addQuote">Add Quote</button>
+
+    <hr>
+
+    <!-- Conflict Resolution -->
+    <h3>Conflict Resolution</h3>
+    <button id="resolveKeepLocal">Keep Local Data</button>
+    <button id="resolveAcceptServer">Accept Server Data</button>
 
     <hr>
 

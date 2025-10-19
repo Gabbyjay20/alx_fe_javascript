@@ -3,6 +3,10 @@
 // Storage key
 const STORAGE_KEY = 'quotes';
 
+// Server simulation constants
+const SERVER_URL = 'https://jsonplaceholder.typicode.com/posts';
+const SYNC_INTERVAL = 30000; // 30 seconds for demo
+
 // Default quotes (used if no saved data)
 let quotes = [
   { text: "The best way to get started is to quit talking and begin doing.", category: "Motivation" },
@@ -317,6 +321,111 @@ function escapeHtml(text) {
     .replaceAll('"', '&quot;')
     .replaceAll("'", '&#039;');
 }
+/* -------------------------
+   Server Sync Functions
+   ------------------------- */
+
+// Fetch quotes from server (simulated)
+async function fetchServerQuotes() {
+  try {
+    const response = await fetch(SERVER_URL);
+    if (!response.ok) throw new Error('Failed to fetch from server');
+    const posts = await response.json();
+
+    // Transform posts to quote format (using title as text, body as category or default)
+    return posts.slice(0, 10).map(post => ({
+      text: post.title,
+      category: 'Server'
+    }));
+  } catch (error) {
+    console.error('Error fetching server quotes:', error);
+    return [];
+  }
+}
+
+// Post local quotes to server (simulated)
+async function postLocalQuotes() {
+  try {
+    const response = await fetch(SERVER_URL, {
+      method: 'POST',
+      body: JSON.stringify({
+        title: 'Local Quotes Sync',
+        body: JSON.stringify(quotes),
+        userId: 1
+      }),
+      headers: {
+        'Content-type': 'application/json; charset=UTF-8',
+      },
+    });
+    if (!response.ok) throw new Error('Failed to post to server');
+    return await response.json();
+  } catch (error) {
+    console.error('Error posting local quotes:', error);
+    return null;
+  }
+}
+
+// Sync data with server
+async function syncWithServer() {
+  const serverQuotes = await fetchServerQuotes();
+  if (serverQuotes.length === 0) return;
+
+  let conflicts = [];
+  let updates = 0;
+
+  // Check for conflicts (simple: if server has quotes not in local)
+  const localKeys = new Set(quotes.map(q => q.text));
+  serverQuotes.forEach(serverQuote => {
+    if (!localKeys.has(serverQuote.text)) {
+      quotes.push(serverQuote);
+      updates++;
+    } else {
+      conflicts.push(serverQuote);
+    }
+  });
+
+  if (updates > 0) {
+    saveQuotes();
+    populateCategories();
+    showNotification(`Synced ${updates} new quotes from server.`);
+  }
+
+  if (conflicts.length > 0) {
+    showNotification(`Conflicts detected with ${conflicts.length} quotes. Server data takes precedence.`, 'conflict');
+  }
+
+  // Post local changes to server
+  await postLocalQuotes();
+}
+
+// Show notification
+function showNotification(message, type = 'info') {
+  const notification = document.getElementById('notification');
+  if (!notification) return;
+
+  notification.textContent = message;
+  notification.style.display = 'block';
+  notification.style.background = type === 'conflict' ? '#ffcccc' : '#ccffcc';
+
+  setTimeout(() => {
+    notification.style.display = 'none';
+  }, 5000);
+}
+
+// Manual conflict resolution (simple: keep local)
+function resolveConflictKeepLocal() {
+  showNotification('Conflict resolved: Keeping local data.');
+}
+
+// Manual conflict resolution (simple: accept server)
+function resolveConflictAcceptServer() {
+  showNotification('Conflict resolved: Accepting server data.');
+}
+
+// Start periodic sync
+function startPeriodicSync() {
+  setInterval(syncWithServer, SYNC_INTERVAL);
+}
 
 /* -------------------------
    Initialization
@@ -352,12 +461,26 @@ document.addEventListener('DOMContentLoaded', () => {
     console.warn('No element with id "newQuote" found. Create a button with id="newQuote" or adjust the script.');
   }
 
+  // Start periodic server sync
+  startPeriodicSync();
+
   // If the page has a pre-existing import or export elements, wire them (compat)
   const importEl = document.getElementById('importFile');
   if (importEl && !importEl.onchange) importEl.addEventListener('change', importFromJsonFile);
 
   const exportEl = document.getElementById('exportBtn');
   if (exportEl && !exportEl.onclick) exportEl.addEventListener('click', exportToJsonFile);
+
+  // Wire up conflict resolution buttons
+  const keepLocalBtn = document.getElementById('resolveKeepLocal');
+  if (keepLocalBtn) {
+    keepLocalBtn.addEventListener('click', resolveConflictKeepLocal);
+  }
+
+  const acceptServerBtn = document.getElementById('resolveAcceptServer');
+  if (acceptServerBtn) {
+    acceptServerBtn.addEventListener('click', resolveConflictAcceptServer);
+  }
 
   // If sessionStorage has last shown index, try to show it
   try {
